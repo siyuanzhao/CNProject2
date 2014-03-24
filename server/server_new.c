@@ -1,5 +1,7 @@
 #include "server.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define CLIENT_PORT "9090"
 #define PORT "8089" 
@@ -14,6 +16,8 @@ int main() {
   fd_set master;
   fd_set read_fds;
   int fdmax;
+  char command[20];
+  char tmp[20];
 
   int listener;     // listening socket descriptor
   int newfd;        // newly accept()ed socket descriptor
@@ -64,16 +68,21 @@ int main() {
     }
 
     freeaddrinfo(ai); // all done with this
-
-    // listen
-    if (listen(listener, 10) == -1) {
-        perror("listen");
-        exit(3);
-    }
-
+  //wait for admin type 'START'
+  while(1) {
+    printf("Please input \"START\" to start server!\n");
+    gets(command);
+    if(strcmp("START", command) == 0)
+      break;    
+  }
+  // listen
+  if (listen(listener, 10) == -1) {
+    perror("listen");
+    exit(3);
+  }
     // add the listener to the master set
     FD_SET(listener, &master);
-
+    FD_SET(0, &master);
     // keep track of the biggest file descriptor
     fdmax = listener; // so far, it's this one
 
@@ -89,8 +98,41 @@ int main() {
     }
     // run through the existing connections looking for data to read
     for(i = 0; i <= fdmax; i++) {
-      if (FD_ISSET(i, &read_fds)) { // we got one!!
-        if (i == listener) {
+      if (FD_ISSET(i, &read_fds)) { 
+        // handle input
+        if (i == 0) {
+          gets(command);
+          if(command == NULL) {
+            printf("command is empty!\n");
+          } else if(strcmp("STATS", command) == 0) {
+            print_client_queue(cq_header);
+            print_channel_queue(chq_header);
+          } else if(strcmp("END", command) == 0) {
+            empty_client_queue(cq_header);
+            empty_channel_queue(chq_header);
+            exit(0);
+          } else {
+            strcpy(tmp, command);
+            char *tok = NULL;
+            tok = strtok(tmp, " ");
+            if(strcmp("BLOCK", tok) == 0) {
+              tok = strtok(NULL, " ");
+              int fd = atoi(tok);
+              printf("%d\n", fd);
+              block_client(cq_header, fd);
+            } else if(strcmp("UNBLOCK", tok) == 0) {
+              tok = strtok(NULL, " ");
+              int fd = atoi(tok);
+              unblock_client(cq_header, fd);
+            } else if(strcmp("THROWOUT", tok) == 0) {
+              tok = strtok(NULL, " ");
+              int fd = atoi(tok);
+              chq_header = remove_channel(chq_header, cq_header, fd);
+            } else {
+              printf("Unrecognized command.\n");
+            }
+          }
+        } else if (i == listener) {
           // handle new connections
           addrlen = sizeof(remoteaddr);
           newfd = accept(listener,(struct sockaddr *)&remoteaddr,&addrlen);
@@ -111,6 +153,7 @@ int main() {
             if(send(newfd, "ACKN", 4, 0) == -1)
               perror("send");
             }
+            print_client_queue(cq_header);
         } else {
            // handle data from a client
             if ((nbytes = recv(i, buf, sizeof(buf), 0)) <= 0) {
@@ -120,116 +163,82 @@ int main() {
               printf("selectserver: socket %d hung up\n", i);
               client *c = find_client(cq_header, i);
               if (c->status == 1) {
+                int partner_fd = find_partner(chq_header, i);
+                if (send(partner_fd, "QUIT", 4, 0) == -1) {
+                  perror("send");
+                }
                 chq_header = remove_channel(chq_header, cq_header, i);
+                print_client_queue(cq_header);
               }
                //remove client from client queue
               cq_header = remove_client(cq_header, i);
+              print_client_queue(cq_header);
 	      } else {
                 perror("recv");
 	      }
               close(i); // bye!
               FD_CLR(i, &master); // remove from master set
             } else {
+              buf[nbytes] = '\0';
               client *c = find_client(cq_header, i);
+              // IN CHAT
               if (c->status == 1) {
                 int partner_fd = find_partner(chq_header, i);
-                if (send(partner_fd, buf, nbytes, 0) == -1) {
-		  perror("send");
+                if (strcmp("QUIT", buf) == 0) {
+                  if (send(partner_fd, "QUIT", 4, 0) == -1) {
+                    perror("send");
+                  }
+                  if (send(i, "QUIT", 4, 0) == -1) {
+                    perror("send");
+                  }
+                  chq_header = remove_channel(chq_header, cq_header, i);
+                  print_client_queue(cq_header);
+                } else {
+                  if (send(partner_fd, buf, nbytes, 0) == -1) {
+		                perror("send");
+                  }
+                  char tmp[70];
+                  strcpy(tmp, buf);
+                  char *tok = strtok(tmp, " ");
+                  if(tok != NULL && strcmp("TRANSFER", tok) == 0) {
+                    tok = strtok(NULL, " ");
+                    printf("%s\n", tok);
+                    char fbuf[1024];
+                    int num;
+                    //FILE *f;
+                    //f = fopen(tok, "w");
+                    //int num = 1;
+                    //bzero(fbuf, sizeof(fbuf));
+                    //while((num = read(i, fbuf, sizeof(fbuf))) > 0) {
+                    num = read(i, fbuf, sizeof(fbuf));
+                    printf("In transfer.\n");
+                    write(partner_fd, fbuf, num);
+                      //bzero(fbuf, sizeof(fbuf));
+                    //}
+                    /*
+                    fclose(f);
+                    f = fopen(tok, "r");
+                    int num = 1;
+                    bzero(fbuf, sizeof(fbuf));
+                    while(num > 0) {
+                      fscanf(f, "%s", fbuf);
+                      num = write(partner_fd, fbuf, num);
+                      if(num < 0) {
+                        break;
+                      }
+                      bzero(fbuf, sizeof(fbuf));
+                    }
+                    fclose(f);*/
+                  }
                 }
               } else if(strcmp(buf, "CHAT") == 0) {
-                printf("strcmp done!\n");
-                for(j = 0; j <= fdmax; j++) {
+                for(j = 1; j <= fdmax; j++) {
                   if (FD_ISSET(j, &master) && j != i && j != listener) {
-                    printf("%d\n", j);
+                    if(check_client_status(cq_header, j) != 0)
+                      continue;
                     channel *cha = match_client(cq_header, j, i);
                     chq_header = add_to_channel_queue(chq_header, cha);
                     if (send(i, "IN SESSION", 10, 0) == -1) {
                       perror("send");
                     }
-                    if (send(j, "IN SESSION", 10, 0) == -1) {
-                      perror("send");
-                    }
-		                break;
-                  }
-                }
-                if (send(i, "ERROR: Can not find partner!", 28, 0) == -1) {
-                  perror("send");
-                }
-              }
-            }
-        } // END handle data from client
-      } // END got new incoming connection
-    } // END looping through file descriptors
-    /*
-    sin_size = sizeof(their_addr);
-    new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-    if(new_fd == -1) {
-      perror("accpet");
-      continue;
-    }
-    struct hostent *client_hostent = gethostbyaddr(get_in_addr((struct sockaddr *)&their_addr), sizeof(struct in_addr), AF_INET);
-    printf("server: got connection from %s\n", client_hostent->h_name);
-
-    //add client to client queue
-    cq_header = add_client(cq_header, client_hostent->h_name);
-    if(!fork()) { // this is the child process
-      close(sockfd);
-      if(send(new_fd, "ACKN", 4, 0) == -1)
-	perror("send");
-      char buf[100];
-      int switcher = 1;
-      int numbytes;
-      int client_fd;
-      int partner_fd;
-      client *current;
-      client *partner;
-      while(switcher == 1) {
-	if((numbytes = recv(new_fd, buf, 100, 0)) == -1)
-	  perror("recv");
-	buf[numbytes] = '\0';
-
-	printf("received: %s", buf);
-	//buf[numbytes-1] = '\0';
-	current = find_client(cq_header, client_hostent->h_name);
-	if(current->status == 1) {
-	  char *partner_hostname = find_partner(chq_header, current->hostname);
-	  partner_fd = connect_to(partner_hostname, CLIENT_PORT);
-	  if(strcmp("QUIT", buf) == 0) {
-	    if(send(new_fd, "QUIT", 4, 0) == -1)
-	      perror("send");
-	    chq_header = remove_channel(chq_header, cq_header, current->hostname);
-	  } else {
-	    if(send(new_fd, buf, strlen(buf), 0) == -1)
-	      perror("send");
-	  }
-	  close(partner_fd);
-	  free(partner_hostname);
-	  free(current);
-	  current = NULL;
-	  partner_hostname = NULL;
-	  continue;
-	}
-	if(strcmp(buf, "CHAT") == 0) {
-	  partner = find_chat_client(cq_header, client_hostent->h_name);
-	  if(partner == NULL) {
-	    if(send(new_fd, "ERROR: Can not find partner!", 28, 0) == -1)
-	      perror("send");
-	  } else {
-	    channel *cha = match_client(cq_header, current->hostname, partner->hostname);
-	    //check
-	    chq_header = add_to_channel_queue(chq_header, cha);
-	    // partner_fd = connect_to(partner->hostname, CLIENT_PORT);
-	    if(send(new_fd, "IN SESSION", 10, 0) == -1)
-	      perror("send");
-	    close(partner_fd);
-	  }
-	  free(partner);
-	  partner = NULL;
-	} else {
-	  if(send(new_fd, "Command unregconized!", 21, 0) == -1)
-	      perror("send");
-	}
-      }
-    }*/
-  }
-}
+                    if (send(j, "IN SESSION", 10,
