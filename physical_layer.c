@@ -1,8 +1,9 @@
-#include "socket_utilities.h"
+#include "phycial_layer.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BACKLOG 10
+extern int sockfd;
+extern int erate;
 
 void sigchld_handler(int s) {
   while(waitpid(-1, NULL, WNOHANG) > 0);
@@ -121,4 +122,23 @@ void *get_in_addr(struct sockaddr *sa) {
     return &(((struct sockaddr_in*)sa)->sin_addr);
   }
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+
+void udt_send(void *buf, int size) {
+  if(size > MTU) {
+    return NET_TOOBIG;
+  }
+  int rnd = rand() % 100; //generate a random number between 1 - 100
+  if((rnd % erate) == 0) {
+    return;
+  }
+  //add code to corrupt data
+  if(send(sockfd, buf, strlen(buf), 0) == -1) {
+    perror("send");
+  }
+  return NET_SUCCESS;
+}
+
+int udt_recv(void *buf, int size, int timeout) {
+  
 }
