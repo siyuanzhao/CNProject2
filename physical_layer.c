@@ -2,49 +2,45 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-extern int sockfd;
+extern int listener;
 extern int erate;
-
-void sigchld_handler(int s) {
-  while(waitpid(-1, NULL, WNOHANG) > 0);
-}
+extern fd_set master;
+extern int fdmax;
 
 //start to listen on a specified port; return 1 means OK, return -1 means error
-int listen_port(char* port) {
-  int sockfd; // listen on sock_fd
+int listen_port() {
   struct addrinfo hints, *servinfo, *p;
   socklen_t sin_size;
   struct sigaction sa;
   int yes = 1;
-  char s[INET6_ADDRSTRLEN];
   int rv;
 
-  memset(&hints, 0, sizeof hints);
+  memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE; // use my IP
 
-  if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
+  if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
     return -1;
   }
 
   // loop through all the results and bind to the first we can find
   for(p = servinfo; p != NULL; p = p->ai_next) {
-    if ((sockfd = socket(p->ai_family, p->ai_socktype,
+    if ((listener = socket(p->ai_family, p->ai_socktype,
 			 p->ai_protocol)) == -1) {
       perror("server: socket");
       continue;
     }
 
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+    if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes,
 		   sizeof(int)) == -1) {
       perror("setsockopt");
       exit(1);
     }
 
-    if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-      close(sockfd);
+    if (bind(listener, p->ai_addr, p->ai_addrlen) == -1) {
+      close(listener);
       perror("server: bind");
       continue;
     }
@@ -59,32 +55,47 @@ int listen_port(char* port) {
 
   freeaddrinfo(servinfo); // all done with this structure
 
-  if (listen(sockfd, BACKLOG) == -1) {
+  if (listen(listener, 10) == -1) {
     perror("listen");
     exit(1);
   }
-
-  sa.sa_handler = sigchld_handler; // reap all dead processes
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_RESTART;
-  if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-    perror("sigaction");
-    exit(1);
-  }
-  return sockfd;
+  FD_SET(listener, &master);
+  fdmax = listener;
+  return listener;
 }
 
-int connect_to(char* hostname, char* port) {
+int create_connection() {
+  struct sockaddr_storage remoteaddr; // client address
+  socklen_t addrlen;
+  char remoteIP[INET6_ADDRSTRLEN];
+
+  addrlen = sizeof(remoteaddr);
+  int newfd = accept(listener,(struct sockaddr *)&remoteaddr,&addrlen);
+  if (newfd == -1) {
+    perror("accept");
+  } else {
+    FD_SET(newfd, &master); // add to master set
+    if (newfd > fdmax) {    // keep track of the max
+      fdmax = newfd;
+    }
+    printf("selectserver: new connection from %s on socket %d\n",
+      inet_ntop(remoteaddr.ss_family,
+      get_in_addr((struct sockaddr*)&remoteaddr),
+      remoteIP, INET6_ADDRSTRLEN), newfd);
+  }
+  return newfd;
+}
+
+int connect_to_server(char* hostname) {
   int sockfd;
   struct addrinfo hints, *servinfo, *p;
   int rv;
-  char s[INET6_ADDRSTRLEN];
 
-  memset(&hints, 0, sizeof hints);
+  memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
 
-  if ((rv = getaddrinfo(hostname, port, &hints, &servinfo)) != 0) {
+  if ((rv = getaddrinfo(hostname, PORT, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
     return -1;
   }
@@ -124,9 +135,9 @@ void *get_in_addr(struct sockaddr *sa) {
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void udt_send(void *buf, int size) {
+void udt_send(Frame *buf, int size, int sockfd) {
   if(size > MTU) {
-    return NET_TOOBIG;
+    return;
   }
   int rnd = rand() % 100; //generate a random number between 1 - 100
   if((rnd % erate) == 0) {
@@ -136,9 +147,22 @@ void udt_send(void *buf, int size) {
   if(send(sockfd, buf, strlen(buf), 0) == -1) {
     perror("send");
   }
-  return NET_SUCCESS;
+  //return NET_SUCCESS;
 }
 
-int udt_recv(void *buf, int size, int timeout) {
-  
+int udt_recv(Frame *buf, int size, int sockfd) {
+  int nbytes;
+  // handle data from a client
+  if ((nbytes = recv(sockfd, buf, sizeof(buf), 0)) <= 0) {
+  // got error or connection closed by client
+    if (nbytes == 0) {
+    // connection closed
+      printf("selectserver: socket %d hung up\n", i);
+    } else {
+      perror("recv");
+    }
+    close(i); // bye!
+    FD_CLR(i, &master); // remove from master set
+  }
+  return nbytes;
 }

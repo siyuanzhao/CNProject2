@@ -1,10 +1,14 @@
-#define	WINDOWSIZE	32	/* window size */
+#define WINDOWSIZE 32	/* window size */
+#define BUFFERSIZE 32
 
-#define TIMER_TICK	10	/* 10 msec */
+#define TIMER_TICK 10	/* 10 msec */
 
-#define	DATASIZE 100 //100 byte
-#define HEADERSIZE (sizeof(Packet) - DATASIZE)
+#define DATASIZE 100 //100 byte
+#define FRAMESIZE (sizeof(Frame))
 #define ACKSIZE sizeof("ACK")
+//type of Frame
+#define ACK 1
+#define NAK 2
 
 /*
   A frame. The header is made of
@@ -15,6 +19,7 @@
 typedef struct {
   int seqn;
   int nbuffer;
+  int type;
   char buffer[DATASIZE];
 } Frame;
 
@@ -48,5 +53,5 @@ bool fqueue_empty(FQueue* queue);
 /* Applies a function to every frame in the queue */
 void fqueue_map(FQueue* queue, void (*fn)(Frame*) );
 void fqueue_debug_print(FQueue* queue);
-int DataLinkSend(Frame *frame);
-Frame* DataLinkRecv();
+int DataLinkSend(char *buf, int size; int type);
+void* DataLinkRecv();
