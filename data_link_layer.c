@@ -1,7 +1,9 @@
 #include <stdlib.h>
-#include <assert.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
+#include <signal.h>
+#include <time.h>
 #include <stdio.h>
 #include "data_link_layer.h"
 
@@ -12,9 +14,15 @@ FQueue fqueue;
 int base = 0;
 int next_seqn = 0;
 int expected_seqn = 0;
+int new_timer = 0;
+timer_t first_timer;
 PQueue pqueue;
 extern int sockfd;
 void send_acknowledge(int seqn, int sockfd);
+static int make_timer( char *name, timer_t *timerID, int expireMS, int intervalMS );
+static void timer_handler( int sig, siginfo_t *si, void *uc );
+static int stop_timer(timer_t *timerid);
+static int restart_timer(timer_t *timerid, int expireMS, int intervalMS);
 
 /* Positive modulo (n % b); eg. -1 PMOD 32 will return 31 */
 int PMOD(int n, int b) {
@@ -102,10 +110,18 @@ void sender_handler() {
   int sent_frames_len = PMOD(next_seqn-base, WINDOWSIZE);
   while(!fqueue_empty(&fqueue) && (fqueue_length(&fqueue) > sent_frames_len)) {
     printf("In sender_handler!\n");
+    fflush(stdout);
+    int tmp = next_seqn;
     Frame *f = fqueue_index(&fqueue, next_seqn);
     udt_send(f, FRAMESIZE);
     next_seqn = PMOD(next_seqn+1, WINDOWSIZE);
     sent_frames_len = PMOD(next_seqn-base, WINDOWSIZE);
+    if(new_timer == 0) {
+      make_timer("first timer", &first_timer, 300, 300);
+      new_timer++;
+    } else if(tmp == base) {
+      restart_timer(&first_timer, 300, 300);
+    }
   }
 }
 
@@ -117,15 +133,18 @@ void receiver_handler(int sockfd) {
   }
   //check if it is ACK or NAK
   if (f.type == ACK) {
-    if(f.seqn == base) {
+    printf("%d\t%d\t%d\t\n", f.type, f.seqn, base);
+    while(f.seqn >= base) {
       //stop current timter
-
+      stop_timer(&first_timer);
       base = PMOD(base+1, WINDOWSIZE);
       fqueue_pop(&fqueue);
       if(base == next_seqn) {
         //stop timer
+        stop_timer(&first_timer);
       } else {
         //start a new timer
+        restart_timer(&first_timer, 300, 300);
       }
     }
   } else {
@@ -138,10 +157,13 @@ void receiver_handler(int sockfd) {
       Packet *p = fqueue_push(&pqueue);
       p->nbuffer = f.nbuffer;
       strncpy(p->buffer, f.buffer, f.nbuffer);
-      printf("%s\t%d\n", p->buffer, f.nbuffer);
+      printf("%s\t%s\t%d\n", p->buffer, f.buffer, f.nbuffer);
+      fflush(stdout);
       //send back ACK
       send_acknowledge(f.seqn, sockfd);
       expected_seqn = PMOD(expected_seqn+1, WINDOWSIZE);
+    } else {
+      send_acknowledge(f.seqn, sockfd);
     }
   }
 }
@@ -156,11 +178,12 @@ void send_acknowledge(int seqn, int sockfd) {
 
 //go-back-N retransmission
 void retransmission_handler() {
-  if(base == next_seqn) //no need to retransfer
+  if(base == next_seqn) {//no need to retransmit
+    printf("No need to retransmit!\n");
     return;
+  }
   int index;
-  //start a new  timer
-
+  //start a new timer
   if(next_seqn > base) {
     for(index = base; index < next_seqn; index++) {
       Frame *f = fqueue_index(&fqueue, index);
@@ -173,4 +196,65 @@ void retransmission_handler() {
       udt_send(f, FRAMESIZE);
     }
   }
+  restart_timer(&first_timer, 300, 300);
+}
+
+static int
+make_timer(char *name, timer_t *timerID, int expireMS, int intervalMS) {
+  struct sigevent te;
+  struct itimerspec its;
+  struct sigaction sa;
+  int sigNo = SIGRTMIN;
+  /* Set up signal handler. */
+  sa.sa_flags = SA_SIGINFO;
+  sa.sa_sigaction = timer_handler;
+  sigemptyset(&sa.sa_mask);
+  if (sigaction(sigNo, &sa, NULL) == -1) {
+    fprintf(stderr, "Failed to setup signal handling for %s.\n", name);
+    return(-1);
+  }
+  /* Set and enable alarm */
+  te.sigev_notify = SIGEV_SIGNAL;
+  te.sigev_signo = sigNo;
+  te.sigev_value.sival_ptr = timerID;
+  timer_create(CLOCK_REALTIME, &te, timerID);
+  its.it_interval.tv_sec = 0;
+  its.it_interval.tv_nsec = intervalMS * 1000000;
+  its.it_value.tv_sec = 0;
+  its.it_value.tv_nsec = expireMS * 1000000;
+  timer_settime(*timerID, 0, &its, NULL);
+  return(0);
+}
+
+static void
+timer_handler(int sig, siginfo_t *si, void *uc ) {
+  timer_t *tidp;
+  tidp = si->si_value.sival_ptr;
+  if (*tidp == first_timer ) {
+    printf("Begin to retransmit!\n");
+    fflush(stdout);
+    retransmission_handler();
+  }
+}
+
+static int stop_timer(timer_t *timerid) {
+  struct itimerspec ts;
+  ts.it_interval.tv_sec = 0;
+  ts.it_interval.tv_nsec = 0;
+  ts.it_value.tv_sec = 0;
+  ts.it_value.tv_nsec = 0;
+
+  int ret = timer_settime(*timerid, 0, &ts, NULL);
+  return ret;
+}
+
+static int restart_timer(timer_t *timerid, int expireMS, int intervalMS) {
+  struct itimerspec its;
+  its.it_interval.tv_sec = 0;
+  its.it_interval.tv_nsec = intervalMS * 1000000;
+  its.it_value.tv_sec = 0;
+  its.it_value.tv_nsec = expireMS * 1000000;
+
+  int ret = timer_settime(*timerid, 0, &its, NULL);
+  return ret;
 }

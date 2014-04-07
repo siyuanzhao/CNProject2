@@ -9,6 +9,8 @@ extern fd_set master;
 extern int fdmax;
 extern int sockfd;
 
+int rand_lim(int limit);
+
 //start to listen on a specified port; return 1 means OK, return -1 means error
 int listen_port() {
   struct addrinfo hints, *servinfo, *p;
@@ -142,9 +144,10 @@ void udt_send(Frame *buf, int size) {
   if(size > MTU) {
     return;
   }
-  int rnd = rand() % 100; //generate a random number between 1 - 100
+  int rnd = rand_lim(100); //generate a random number between 1 - 100
   if(rnd < erate) {
     printf("Drop the frame!\n");
+    fflush(stdout);
     return;
   }
   //add code to corrupt data
@@ -169,4 +172,16 @@ int udt_recv(Frame *buf, int size) {
     FD_CLR(sockfd, &master); // remove from master set
   }
   return nbytes;
+}
+
+int rand_lim(int limit) {
+/* return a random number between 0 and limit inclusive.
+ */
+  int divisor = RAND_MAX/(limit+1);
+  int retval;
+
+  do { 
+    retval = rand() / divisor;
+  } while (retval > limit);
+  return retval;
 }

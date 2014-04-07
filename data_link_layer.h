@@ -2,7 +2,7 @@
 #define WINDOWSIZE 32	/* window size */
 #define BUFFERSIZE 32
 
-#define TIMER_TICK 10	/* 10 msec */
+#define TIMER_TICK 1000	/* 10 msec */
 
 #define DATASIZE 100 //100 byte
 #define FRAMESIZE (sizeof(Frame))

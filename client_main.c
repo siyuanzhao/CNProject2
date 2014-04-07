@@ -10,7 +10,7 @@
 fd_set master;
 int fdmax;
 int sockfd;
-int erate = 10;
+int erate = 50;
 int listener;
 extern FQueue fqueue;
 extern FQueue pqueue;

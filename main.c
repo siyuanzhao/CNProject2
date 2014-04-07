@@ -11,7 +11,7 @@ int listener;
 fd_set master;
 int fdmax;
 int sockfd;
-int erate = 10;
+int erate = 50;
 extern FQueue fqueue;
 extern FQueue pqueue;
 static sigset_t sigs;	/* sigset_t for SIGALRM */
