@@ -3,7 +3,6 @@
 #include <string.h>
 #include <sys/time.h>
 #include <signal.h>
-#include "physical_layer.h"
 #include "data_link_layer.h"
 #include "app_layer.h"
 
@@ -11,19 +10,27 @@
 fd_set master;
 int fdmax;
 int sockfd;
+int erate = 10;
+int listener;
+extern FQueue fqueue;
+extern FQueue pqueue;
 static sigset_t sigs;	/* sigset_t for SIGALRM */
+
+void scheduled_handler();
 
 int main() {
 	int i;
 	char command[50];
 	char tmp[50];
+	char action[30];
 	fd_set read_fds;
+	char *tok = NULL;
 
 	FD_ZERO(&master);    // clear the master and temp sets
   FD_ZERO(&read_fds);
 	FD_SET(0, &master);
-	fqueue_init(fqueue, WINDOWSIZE);
-	fqueue_init(pqueue, WINDOWSIZE);
+	fqueue_init(&fqueue, WINDOWSIZE);
+	fqueue_init(&pqueue, WINDOWSIZE);
 	printf("Client is ready!\n");
 
 	int status = 0; //0->not connected; 1->connected;
@@ -58,15 +65,15 @@ int main() {
     }
 	}
 	//set up a timer
-	signal(SIGALRM. scheduled_handler);
+	signal(SIGALRM, scheduled_handler);
 	sigemptyset(&sigs);
 	sigaddset(&sigs, SIGALRM);
 
 	struct itimerval tt;
 	tt.it_interval.tv_sec = 0;
-	tt.it_interval.tv_usec = ALARM_TICK;
+	tt.it_interval.tv_usec = TIMER_TICK;
 	tt.it_value.tv_sec = 0;
-	tt.it_value.tv_usec = ALARM_TICK;
+	tt.it_value.tv_usec = TIMER_TICK;
 	if (setitimer(ITIMER_REAL, &tt, NULL) < 0) {
 		perror("sender: setitimer");
 		exit(1);
@@ -75,8 +82,9 @@ int main() {
 	while(1) {
 		read_fds = master;
 		if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
-      perror("select");
-      exit(4);
+      //perror("select");
+      continue;
+      //exit(4);
     }
     // run through the existing connections looking for data to read
     for(i = 0; i <= fdmax; i++) {

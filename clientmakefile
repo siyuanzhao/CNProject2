@@ -1,0 +1,2 @@
+client2: client_main.c app_layer.c data_link_layer.c physical_layer.c
+	gcc -o client2 physical_layer.c data_link_layer.c app_layer.c client_main.c -I.

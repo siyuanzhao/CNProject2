@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include "data_link_layer.h"
 
 /*
  *	return value of udt_send() and udt_recv()
@@ -19,11 +20,11 @@
 #define PORT "8089"
 #define	MTU 1500	/* max transmission unit */
 
-void udt_send(void *buf, int size);
+void udt_send(Frame *buf, int size);
 
-void udt_recv(void *buf, int size, int sockfd);
+int udt_recv(Frame *buf, int size);
 int listen_port();
 int connect_to_server(char* hostname);
 //get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa);
-void create_connection();
+int create_connection();

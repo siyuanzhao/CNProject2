@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #define WINDOWSIZE 32	/* window size */
 #define BUFFERSIZE 32
 
@@ -53,5 +54,5 @@ bool fqueue_empty(FQueue* queue);
 /* Applies a function to every frame in the queue */
 void fqueue_map(FQueue* queue, void (*fn)(Frame*) );
 void fqueue_debug_print(FQueue* queue);
-int DataLinkSend(char *buf, int size; int type);
+void DataLinkSend(char *buf, int size, int type);
 void* DataLinkRecv();

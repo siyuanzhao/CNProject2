@@ -1,11 +1,13 @@
-#include "phycial_layer.h"
+#include "physical_layer.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern int listener;
 extern int erate;
 extern fd_set master;
 extern int fdmax;
+extern int sockfd;
 
 //start to listen on a specified port; return 1 means OK, return -1 means error
 int listen_port() {
@@ -90,6 +92,7 @@ int connect_to_server(char* hostname) {
   int sockfd;
   struct addrinfo hints, *servinfo, *p;
   int rv;
+  char s[INET6_ADDRSTRLEN];
 
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
@@ -120,7 +123,7 @@ int connect_to_server(char* hostname) {
     return -1;
   }
   inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
-	    s, sizeof s);
+	    s, sizeof(s));
   printf("connecting to %s\n", s);
 
   freeaddrinfo(servinfo); // all done with this structure
@@ -135,34 +138,35 @@ void *get_in_addr(struct sockaddr *sa) {
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void udt_send(Frame *buf, int size, int sockfd) {
+void udt_send(Frame *buf, int size) {
   if(size > MTU) {
     return;
   }
   int rnd = rand() % 100; //generate a random number between 1 - 100
-  if((rnd % erate) == 0) {
+  if(rnd < erate) {
+    printf("Drop the frame!\n");
     return;
   }
   //add code to corrupt data
-  if(send(sockfd, buf, strlen(buf), 0) == -1) {
+  if(send(sockfd, buf, FRAMESIZE, 0) == -1) {
     perror("send");
   }
   //return NET_SUCCESS;
 }
 
-int udt_recv(Frame *buf, int size, int sockfd) {
+int udt_recv(Frame *buf, int size) {
   int nbytes;
   // handle data from a client
-  if ((nbytes = recv(sockfd, buf, sizeof(buf), 0)) <= 0) {
+  if ((nbytes = recv(sockfd, (void*)buf, size, 0)) <= 0) {
   // got error or connection closed by client
     if (nbytes == 0) {
     // connection closed
-      printf("selectserver: socket %d hung up\n", i);
+      printf("selectserver: socket %d hung up\n", sockfd);
     } else {
       perror("recv");
     }
-    close(i); // bye!
-    FD_CLR(i, &master); // remove from master set
+    close(sockfd); // bye!
+    FD_CLR(sockfd, &master); // remove from master set
   }
   return nbytes;
 }
