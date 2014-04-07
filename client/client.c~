@@ -1,0 +1,149 @@
+#include "client.h"
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAXDATASIZE 200
+#define COMMAND_LENGTH 70
+#define PORT "9090"
+
+int main() {
+  printf("Client application starts!\n");
+
+  char command[70];
+  char tmp[70];
+  char action[10];
+  char *tok = NULL;
+  char buf[MAXDATASIZE];
+  int numbytes;
+  int status = 0; //0->not connected; 1->connected; 2->in chat
+  int sockfd, fdmax, i;
+  fd_set master;
+  fd_set read_fds;
+  
+  // while(1) {
+
+    while(status == 0) {    
+      printf("Please input command:(For example, CONNECT hostname port)\n ");
+      gets(command);
+
+      //check if input is legal
+      if(command == NULL) {
+	printf("Input the wrong command, please try again!\n");
+	continue;
+      }
+      strcpy(tmp, command);
+      //expect CONNECT command
+      tok = strtok(tmp, " ");
+      if(tok == NULL) {
+	printf("Input the wrong command, please try again!\n");
+	continue;
+      }
+      strcpy(action, tok);
+      if(strcmp(action, "CONNECT") == 0) {
+	if(status != 0) {
+	  printf("You have already connected to the server! Try command CHAT\n");
+	  continue;
+	}
+	char hostname[50];
+	char port[10];
+	tok = strtok(NULL, " ");
+	if(tok) {
+	  strcpy(hostname, tok);
+	} else {
+	  printf("Input the wrong command, please try again!\n");
+	  continue;
+	}
+	tok = strtok(NULL, " ");
+	if(tok) {
+	  strcpy(port, tok);
+	} else {
+	  printf("Input the wrong command, please try again!\n");
+	  continue;
+	}
+	printf("%s\t%s\n", hostname, port);
+	if((sockfd = connect_to(hostname, port)) == -1) {
+	  perror("connect");
+	  continue;
+	}
+	FD_ZERO(&master);
+	FD_ZERO(&read_fds);
+	FD_SET(0, &master);
+	FD_SET(sockfd, &master);
+	fdmax = sockfd;
+	break;
+	/*
+	if((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+	  perror("recv");
+	  continue;
+	}
+	buf[numbytes] = '\0';
+	if(strcmp(buf, "ACKN") == 0) {
+	  status = 1;
+	  printf("%s\n", buf);
+	  break;
+	} else {
+	  status = 0;
+	  printf("CONNECT failed, try again!");
+	  continue;
+	  }*/
+      }
+    }
+    while(1) {
+      read_fds = master;
+      if(select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1) {
+	perror("select");
+	continue;
+      } 
+      for(i=0; i <= fdmax; i++)
+	if(FD_ISSET(i, &read_fds)) {
+	  if(i == 0) {
+	    if(status == 1) {
+	      // printf("You are connected to server now!\n");
+	      //printf("Please input command:(For example, CHAT)\n ");
+	      //fgets(command, COMMAND_LENGTH, stdin);
+	      printf("Input Command:\n");
+	      gets(command);
+	      
+	      if(strcmp(command, "CHAT") == 0) {
+		if(send(sockfd, "CHAT", 4, 0) == -1) {
+		  perror("send");
+		  // continue;
+		}
+		printf("%s\n", command);
+	      }
+	    }  else if(status == 2) {
+	      //fgets(command, COMMAND_LENGTH, stdin);
+	      printf("In chat\n");
+	      gets(command);
+	      printf("%s\n", command);
+	      if(send(sockfd, command, strlen(command), 0)) {
+		perror("send");
+	      }
+	    //break;
+	    }// else if(status == 2)
+	  } else if(i == sockfd) {
+	    printf("i = %d\t sockfd = %d\n", i, sockfd);
+	    if((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+	      perror("recv");
+	      continue;
+	    }
+	    buf[numbytes] = '\0';
+	    // if(status == 1) {
+	    if(strcmp(buf, "IN SESSION") == 0) {
+	      status = 2;
+	      //break;
+	    } else if(strcmp(buf, "ACKN") == 0) {
+	      status = 1;	  	
+	      //break;
+	    } else if(strcmp(buf, "QUIT")) == 0) {
+	    status = 1;
+	  }
+	    printf("%s\n", buf);
+	    fflush(stdout);
+	    //break;
+	  } //else if(i == sockfd)
+	}// if(FD_ISSET)
+    }//while(1)
+    // }   
+}
