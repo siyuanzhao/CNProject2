@@ -1,0 +1,57 @@
+retransmission mode: 0
+erate %: 0
+corruption %: 0
+frame sent num: 1260
+retrans_num: 30
+ack_sent_num: 0
+ack_recved_num: 1260
+data_amount: 256060
+dup_frame_recved_num: 0
+time_required: 50.000000
+
+
+retransmission mode: 0
+erate %: 10
+corruption %: 10
+frame sent num: 532
+retrans_num: 65
+ack_sent_num: 0
+ack_recved_num: 495
+data_amount: 148842
+dup_frame_recved_num: 0
+time_required: 53.000000
+
+retransmission mode: 0
+erate %: 20
+corruption %: 20
+frame sent num: 545
+retrans_num: 175
+ack_sent_num: 0
+ack_recved_num: 540
+data_amount: 59644
+dup_frame_recved_num: 0
+time_required: 85.000000
+
+retransmission mode: 0
+erate %: 30
+corruption %: 30
+frame sent num: 1150
+retrans_num: 450
+ack_sent_num: 0
+ack_recved_num: 990
+data_amount: 120
+dup_frame_recved_num: 0
+time_required: 120.000000
+
+retransmission mode: 0
+erate %: 40
+corruption %: 40
+frame sent num: 1150
+retrans_num: 860
+ack_sent_num: 0
+ack_recved_num: 1150
+data_amount: 978840
+dup_frame_recved_num: 0
+time_required: 120.000000
+
+

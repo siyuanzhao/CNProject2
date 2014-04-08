@@ -5,6 +5,7 @@
 
 extern int listener;
 extern int erate;
+extern int corrupted;
 extern fd_set master;
 extern int fdmax;
 extern int sockfd;
@@ -150,7 +151,19 @@ void udt_send(Frame *buf, int size) {
     fflush(stdout);
     return;
   }
-  //add code to corrupt data
+  rnd = rand_lim(100);
+  if(rnd < corrupted) {
+    Frame f;
+    f.seqn = buf->seqn;
+    f.checksum = buf->checksum;
+    strcpy(f.buffer, "corrupted data!");
+    printf("Corrupt the frame!\n");
+    fflush(stdout);
+    if(send(sockfd, &f, FRAMESIZE, 0) == -1) {
+      perror("send");
+    return;
+  }
+  }
   if(send(sockfd, buf, FRAMESIZE, 0) == -1) {
     perror("send");
   }

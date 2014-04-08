@@ -1,0 +1,32 @@
+To compile server application:
+1. In terminal, go to server folder
+2. Input "make" commmand
+3. Input "./server" to start server
+
+After starting server:
+1. Input frame loss rate(%) (like 0, 10, 20).
+2. Input frame corruption rate(%) (like 0, 10, 20).
+3. Choose retransmission mode. Input "0" means go-back-N, input "1" means selective repeat.
+4. Then server will listen on a certain port waiting for client.
+
+
+
+To compile client application:
+1. In terminal, go to client folder
+2. Input "make" commmand
+3. Input "./client" to start client
+
+After starting client:
+1. Input frame loss rate(%) (like 0, 10, 20).
+2. Input frame corruption rate(%) (like 0, 10, 20).
+3. Choose retransmission mode. Input "0" means go-back-N, input "1" means selective repeat.
+4. In order to connect to server, input "CONNECT" command, such as "CONNECT <server-hostname>".
+
+
+
+After client connects to server, they can communicate with each other. 
+During the transmission, frame loss, data corruption and retransmission may happen according to your setting for loss rate, corruption rate and retransmission mode. 
+Input "loss rate" to reset new value for loss rate. 
+Input "corruption rate" to reset new value for corruption rate.
+In order to transfer file, type in "transfer". Then you will be asked to input file name.
+Type in "printf", debug information will be displayed on the screen.

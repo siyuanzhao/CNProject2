@@ -12,7 +12,10 @@ fd_set master;
 int fdmax;
 int sockfd;
 int erate = 10;
+int corrupted = 10;
 int seqn = 0;
+int retransmission_mode = 0; // 0=>go-back-N; 1=>selective repeat
+debug_info di;
 extern FQueue fqueue;
 extern FQueue pqueue;
 static sigset_t sigs;	/* sigset_t for SIGALRM */
@@ -30,7 +33,18 @@ int main() {
 	fqueue_init(&fqueue, WINDOWSIZE);
 	fqueue_init(&pqueue, WINDOWSIZE);
 	listener = listen_port();
-	printf("Server is ready, please input command: \n");
+	printf("Server is ready, please input frame loss rate (%%): ");
+	gets(command);
+	erate = atoi(command);
+	printf("please input frame corruption rate (%%): ");
+	gets(command);
+	corrupted = atoi(command);
+	printf("please choose retransmission mode(0: go-back-N; 1: selective repeat): \n");
+	gets(command);
+	retransmission_mode = atoi(command);
+	if(retransmission_mode == 1) {
+		fqueue.maxsize = 5;
+	}
 
 	//set up a timer
 	signal(SIGALRM, scheduled_handler);

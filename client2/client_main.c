@@ -13,6 +13,9 @@ int seqn = 0;
 int sockfd;
 int erate = 10;
 int listener;
+int corrupted = 10;
+int retransmission_mode = 0;
+debug_info di;
 extern FQueue fqueue;
 extern FQueue pqueue;
 static sigset_t sigs;	/* sigset_t for SIGALRM */
@@ -33,6 +36,21 @@ int main() {
 	fqueue_init(&fqueue, WINDOWSIZE);
 	fqueue_init(&pqueue, WINDOWSIZE);
 	printf("Client is ready!\n");
+	printf("please input frame loss rate (%%): ");
+	gets(command);
+	erate = atoi(command);
+	printf("please input frame corruption rate (%%): ");
+	gets(command);
+	corrupted = atoi(command);
+	printf("please choose retransmission mode(0: go-back-N; 1: selective repeat): \n");
+	gets(command);
+	di.erate = erate;
+	di.corrupted = corrupted;
+	di.retrans_mode = retransmission_mode;
+	retransmission_mode = atoi(command);
+	if(retransmission_mode == 1) {
+		fqueue.maxsize = 5;
+	}
 
 	int status = 0; //0->not connected; 1->connected;
 	while(status == 0) {

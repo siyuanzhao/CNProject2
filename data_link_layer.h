@@ -1,8 +1,7 @@
 #include <stdbool.h>
-#define WINDOWSIZE 32	/* window size */
-#define BUFFERSIZE 32
+#define WINDOWSIZE 1000	/* window size */
 
-#define TIMER_TICK 1000
+#define TIMER_TICK 5
 
 #define DATASIZE 100 //100 byte
 #define FRAMESIZE (sizeof(Frame))
@@ -24,6 +23,7 @@ typedef struct {
   int seqn;
   int nbuffer;
   int type;
+  char checksum;
   char buffer[DATASIZE];
 } Frame;
 /*  A very simple circular FIFO queue for frames.
@@ -36,6 +36,19 @@ typedef struct {
   int maxsize;
   Frame* frames;
 } FQueue;
+
+typedef struct {
+  int retrans_mode;
+  int erate;
+  int corrupted;
+  int frame_sent_num;
+  int retrans_num;
+  int ack_sent_num;
+  int ack_recved_num;
+  int data_amount;
+  int dup_frame_recved_num;
+  double time_required;
+} debug_info;
 
 int PMOD(int n, int b);
 void fqueue_init(FQueue* queue, int windowsize);
