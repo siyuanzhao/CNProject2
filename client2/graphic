@@ -55,3 +55,35 @@ dup_frame_recved_num: 0
 time_required: 120.000000
 
 
+retransmission mode: 0
+erate %: 50
+corruption %: 50
+frame sent num: 1500
+retrans_num: 1000
+ack_sent_num: 0
+ack_recved_num: 1600
+data_amount: 234.000
+dup_frame_recved_num: 0
+time_required: 250.000000
+
+retransmission mode: 0
+erate %: 70
+corruption %: 70
+frame sent num: 32
+retrans_num: 63
+ack_sent_num: 36
+ack_recved_num: 36
+data_amount: 24002
+dup_frame_recved_num: 4
+time_required: 4.000000
+
+retransmission mode: 0
+erate %: 80
+corruption %: 80
+frame sent num: 23
+retrans_num: 58
+ack_sent_num: 26
+ack_recved_num: 26
+data_amount: 14081
+dup_frame_recved_num: 3
+time_required: 3.000000

@@ -119,6 +119,7 @@ void sender_handler() {
   //check if there is any unsent frame in queue
 
   int sent_frames_len = next_seqn - base;
+  int counter = 0;
   while((fqueue.length != 0) && (fqueue.length > sent_frames_len)) {
     di.frame_sent_num++;
     int tmp = next_seqn;
@@ -170,6 +171,10 @@ void sender_handler() {
         restart_timer(&first_timer, 100, 100);
       }
     }
+    if(counter > 3) {
+      break;
+    }
+    counter++;
   }
 }
 
@@ -195,9 +200,11 @@ void receiver_handler(int sockfd) {
       double time2_in_mill = 
          (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000 ;
       di.time_required += (time2_in_mill - time1_in_mill);
+      if(fqueue.length == 0)
+        break;
       if(retransmission_mode == 0) {
         //stop current timter
-        stop_timer(&first_timer);
+        //stop_timer(&first_timer);
         //base = PMOD(base+1, WINDOWSIZE);
         base++;
         fqueue_pop(&fqueue);
@@ -208,6 +215,7 @@ void receiver_handler(int sockfd) {
           break;
         } else {
           //start a new timer
+          stop_timer(&first_timer);
           restart_timer(&first_timer, 100, 100);
         }
       } else if(retransmission_mode == 1) {
@@ -267,7 +275,7 @@ void receiver_handler(int sockfd) {
          (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000 ;
       di.time_required += (time2_in_mill - time1_in_mill);
       di.dup_frame_recved_num++;
-      send_acknowledge(f.seqn, sockfd);
+      send_acknowledge(expected_seqn-1, sockfd);
     }
   }
 }
@@ -279,6 +287,7 @@ void send_acknowledge(int seqn, int sockfd) {
   Frame f;
   f.seqn = seqn;
   f.type = ACK;
+  printf("Send ACK, seqn = %d\n", f.seqn);
   udt_send(&f, FRAMESIZE);
 }
 
@@ -351,7 +360,7 @@ static int restart_timer(timer_t *timerid, int expireMS, int intervalMS) {
 }
 
 void DataLinkRecv() {
-  while(!fqueue_empty(&pqueue)) {
+  while(pqueue.length != 0) {
     Packet *p = fqueue_pop(&pqueue);
     if(p->type == FILE_STARTER) {
       printf("Ready to creat file!\n");
