@@ -156,6 +156,7 @@ void udt_send(Frame *buf, int size) {
     Frame f;
     f.seqn = buf->seqn;
     f.checksum = buf->checksum;
+    f.type = buf->type;
     strcpy(f.buffer, "corrupted data!");
     printf("Corrupt the frame!\n");
     fflush(stdout);

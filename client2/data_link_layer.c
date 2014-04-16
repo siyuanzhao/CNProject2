@@ -9,7 +9,8 @@
 #include "data_link_layer.h"
 
 #define Packet Frame 
-#define PQueue FQueue 
+#define PQueue FQueue
+#define TIMER_INTERVAL 200
 
 FQueue fqueue;
 volatile int base = 0;
@@ -20,11 +21,13 @@ int new_sr = 0;
 int fd_r;
 int fd_w;
 int header_size = FRAMESIZE - DATASIZE;
+int counter[TIMER_NUMBER];
 timer_t first_timer;
 timer_t second_timer;
 timer_t third_timer;
 timer_t fourth_timer;
 timer_t fifth_timer;
+timer_t *timer_arr;
 PQueue pqueue;
 extern int sockfd;
 extern int seqn;
@@ -119,15 +122,16 @@ void sender_handler() {
   //check if there is any unsent frame in queue
 
   int sent_frames_len = next_seqn - base;
-  int counter = 0;
+  int quit = 0;
   while((fqueue.length != 0) && (fqueue.length > sent_frames_len)) {
     di.frame_sent_num++;
     int tmp = next_seqn;
     int tmp_seqn;
+    //tmp_seqn = PMOD(next_seqn, WINDOWSIZE);
     if(retransmission_mode == 0)
       tmp_seqn = PMOD(next_seqn, WINDOWSIZE);
     else if(retransmission_mode == 1) 
-      tmp_seqn = PMOD(next_seqn, 5);
+      tmp_seqn = PMOD(next_seqn, TIMER_NUMBER);
     Frame *f = fqueue_index(&fqueue, tmp_seqn);
     udt_send(f, FRAMESIZE);
     di.data_amount += (header_size+f->nbuffer);
@@ -139,20 +143,30 @@ void sender_handler() {
     if(retransmission_mode == 1) {
       if(new_sr == 0) {
         //init all timers
-        make_timer("first timer", &first_timer, 0, 0);
-        make_timer("second timer", &second_timer, 0, 0);
-        make_timer("third timer", &third_timer, 0, 0);
-        make_timer("fourth timer", &fourth_timer, 0, 0);
-        make_timer("fifth timer", &fifth_timer, 0, 0);
+        //make_timer("first timer", &first_timer, 0, 0);
+        //make_timer("second timer", &second_timer, 0, 0);
+        //make_timer("third timer", &third_timer, 0, 0);
+        //make_timer("fourth timer", &fourth_timer, 0, 0);
+        //make_timer("fifth timer", &fifth_timer, 0, 0);
+        timer_arr = (timer_t*) malloc(TIMER_NUMBER*sizeof(timer_t));
+
+        int i;
+        for(i = 0; i < TIMER_NUMBER; i++) {
+          make_timer("timer", timer_arr+i, 0, 0);
+          //printf("%d\n",i);
+        }
+        printf("Here!\n");
         new_sr++;
       }
+      restart_timer(timer_arr+tmp_seqn, next_seqn*TIMER_INTERVAL, next_seqn*TIMER_INTERVAL);
+      /*
       switch(tmp_seqn) {
         case 0:
           restart_timer(&first_timer, 100, 100);
           break;
         case 1:
           restart_timer(&second_timer, 100, 100);
-          break;
+          break;  
         case 2:
           restart_timer(&third_timer, 100, 100);
           break;
@@ -162,19 +176,19 @@ void sender_handler() {
         case 4:
           restart_timer(&fifth_timer, 100, 100);
           break;
-      }
+      }*/
     } else if(retransmission_mode == 0) {
       if(new_timer == 0) {
-        make_timer("first timer", &first_timer, 100, 100);
+        make_timer("first timer", &first_timer, TIMER_INTERVAL, TIMER_INTERVAL);
         new_timer++;
       } else if(tmp == base) {
-        restart_timer(&first_timer, 100, 100);
+        restart_timer(&first_timer, TIMER_INTERVAL, TIMER_INTERVAL);
       }
     }
-    if(counter > 3) {
+    if(quit == 3) {
       break;
     }
-    counter++;
+    quit++;
   }
 }
 
@@ -219,7 +233,10 @@ void receiver_handler(int sockfd) {
           restart_timer(&first_timer, 100, 100);
         }
       } else if(retransmission_mode == 1) {
-        int tmp_seqn = PMOD(f.seqn, 5);
+        //int tmp_seqn = PMOD(f.seqn, 5);
+        int tmp_seqn = PMOD(f.seqn, TIMER_NUMBER);
+        stop_timer(timer_arr+tmp_seqn);
+        /*
         switch(tmp_seqn) {
           case 0:
             stop_timer(&first_timer);
@@ -236,7 +253,7 @@ void receiver_handler(int sockfd) {
           case 4:
             stop_timer(&fifth_timer);
             break;
-        }
+        }*/
         base++;
         fqueue_pop(&fqueue);
         printf("After ACK: base: %d, length: %d\n", base, fqueue.length);
@@ -253,6 +270,7 @@ void receiver_handler(int sockfd) {
       //buffer it till application layer is about to fetch it
       while(pqueue.length == pqueue.maxsize) {//buffer is full, wait till it is available
         //pause();
+        printf("pqueue is full!\n");
       }
       if(f.checksum != checksum(f.buffer)) {
         printf("Data is corrupted!\n");
@@ -287,6 +305,7 @@ void send_acknowledge(int seqn, int sockfd) {
   Frame f;
   f.seqn = seqn;
   f.type = ACK;
+  printf("Send ACK, seqn = %d\n", f.seqn);
   udt_send(&f, FRAMESIZE);
 }
 
@@ -389,7 +408,7 @@ void DataLinkRecv() {
 
 static char checksum(char* s) {
   signed char sum = -1;
-  while (*s != 0) {
+  while (s != NULL && *s != 0) {
     sum += *s;
     s++;
   }
@@ -412,6 +431,21 @@ static void go_back_N() {
 }
 
 static void selective_repeat(timer_t *tidp) {
+  int i = 0;
+  while(i < TIMER_NUMBER) {
+    //check to see which timer went off
+    if(*tidp == timer_arr[i]) {
+      counter[i]++;
+      printf("%d\n", i);
+      Frame *f = fqueue_index(&fqueue, i);
+      di.data_amount += (header_size+f->nbuffer);
+      udt_send(f, FRAMESIZE);
+      restart_timer(timer_arr+i, (counter[i]+1+i)*TIMER_INTERVAL, (counter[i]+1+i)*TIMER_INTERVAL);
+      break;
+    }
+    i++;
+  }
+  /*
   if (*tidp == first_timer ) {
     Frame *f = fqueue_index(&fqueue, 0);
     di.data_amount += (header_size+f->nbuffer);
@@ -437,5 +471,5 @@ static void selective_repeat(timer_t *tidp) {
     di.data_amount += (header_size+f->nbuffer);
     udt_send(f, FRAMESIZE);
     restart_timer(&fifth_timer, 2*100, 2*100);
-  }
+  }*/
 }

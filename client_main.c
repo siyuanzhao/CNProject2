@@ -48,8 +48,9 @@ int main() {
 	di.corrupted = corrupted;
 	di.retrans_mode = retransmission_mode;
 	retransmission_mode = atoi(command);
+
 	if(retransmission_mode == 1) {
-		fqueue.maxsize = 5;
+		fqueue.maxsize = TIMER_NUMBER;
 	}
 
 	int status = 0; //0->not connected; 1->connected;

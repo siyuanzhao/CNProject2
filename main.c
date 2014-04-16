@@ -19,6 +19,11 @@ debug_info di;
 extern FQueue fqueue;
 extern FQueue pqueue;
 static sigset_t sigs;	/* sigset_t for SIGALRM */
+extern int base;
+extern int next_seqn;
+extern int expected_seqn;
+extern int new_timer;
+extern int new_sr;
 
 void scheduled_handler();
 
@@ -42,9 +47,10 @@ int main() {
 	printf("please choose retransmission mode(0: go-back-N; 1: selective repeat): \n");
 	gets(command);
 	retransmission_mode = atoi(command);
+	/*
 	if(retransmission_mode == 1) {
 		fqueue.maxsize = 5;
-	}
+	}*/
 
 	//set up a timer
 	signal(SIGALRM, scheduled_handler);
@@ -77,6 +83,15 @@ int main() {
     		} else if(i == listener) {
     			//handle new connection
     			sockfd = create_connection();
+    			//initialize global variables
+    			seqn = 0;
+    			pqueue.head = 0;
+    			pqueue.length = 0;
+    			base = 0;
+    			next_seqn = 0;
+    			expected_seqn = 0;
+    			new_timer = 0;
+    			new_sr = 0;
     		} else {
     			//handle data from a client
     			receiver_handler(i);

@@ -1,7 +1,8 @@
 #include <stdbool.h>
 #define WINDOWSIZE 100000	/* window size */
+#define TIMER_NUMBER 7000
 
-#define TIMER_TICK 500
+#define TIMER_TICK 1000
 
 #define DATASIZE 100 //100 byte
 #define FRAMESIZE (sizeof(Frame))

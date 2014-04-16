@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 extern int erate;
 extern int corrupted;
@@ -29,6 +30,7 @@ void run_command(char *command) {
 		int cnt;
 
 		char buf[DATASIZE];
+		int quit = 0;
 		while((cnt = read(fd_s, buf, DATASIZE)) > 0) {
 			DataLinkSend(buf, cnt, FILE_DATA);
 		}
